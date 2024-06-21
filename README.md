@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Last Commit](https://img.shields.io/github/last-commit/yourusername/web-scraper)
+![Last Commit](https://img.shields.io/github/last-commit/danhilse/web-scraper)
 
 A powerful command-line web scraper tool that extracts content from websites and saves it to organized text files.
 
@@ -19,7 +19,8 @@ A powerful command-line web scraper tool that extracts content from websites and
 
 1. Clone this repository:
 git clone https://github.com/yourusername/web-scraper.git
-Copy2. Install the required dependencies:
+
+2. Install the required dependencies:
 pip install -r requirements.txt
 
 ## Usage
@@ -45,14 +46,6 @@ The executable will be created in the `dist` directory.
 ## Executable
 
 A pre-built executable is available in the `dist` folder. You can download and run it directly without needing to install Python or any dependencies.
-
-### Usage of pre-built executable:
-
-On Unix-like systems (macOS, Linux):
-
-## Contributing
-
-Contributions, issues, and feature requests are welcome! Feel free to check [issues page](link-to-issues-page).
 
 ## License
 
