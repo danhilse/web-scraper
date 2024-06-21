@@ -57,9 +57,3 @@ Contributions, issues, and feature requests are welcome! Feel free to check [iss
 ## License
 
 This project is open source and available under the [MIT License](LICENSE).
-
-## Contact
-
-Your Name - [@your_twitter](https://twitter.com/your_twitter) - your.email@example.com
-
-Project Link: [https://github.com/yourusername/web-scraper](https://github.com/yourusername/web-scraper)
