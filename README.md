@@ -21,20 +21,20 @@ A powerful command-line web scraper tool that extracts content from websites and
 git clone https://github.com/yourusername/web-scraper.git
 Copy2. Install the required dependencies:
 pip install -r requirements.txt
-Copy
+
 ## Usage
 
 To scrape a single URL:
 python web_scraper.py https://example.com
-Copy
+
 To scrape an entire sitemap:
 python web_scraper.py https://example.com --sitemap
-Copy
+
 ## Building the Executable
 
 To create a standalone executable:
 pyinstaller web_scraper.spec
-Copy
+
 The executable will be created in the `dist` directory.
 
 ## Project Structure
