@@ -31,13 +31,6 @@ python web_scraper.py https://example.com
 To scrape an entire sitemap:
 python web_scraper.py https://example.com --sitemap
 
-## Building the Executable
-
-To create a standalone executable:
-pyinstaller web_scraper.spec
-
-The executable will be created in the `dist` directory.
-
 ## Project Structure
 
 - `web_scraper.py`: Main script containing the web scraper logic
