@@ -6,7 +6,7 @@
 
 A powerful command-line web scraper tool that extracts content from websites and saves it to organized text files.
 
-![Web Scraper Demo](link-to-your-gif)
+![Web Scraper Demo](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTZtMG91aXkyMnJ5eXo5NXB0cTk3dnA5Z3Nwa3gyZ3dldGthbTBnNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LL6x8hTiAExvxVbe3q/giphy.gif)
 
 ## Features
 
@@ -40,8 +40,15 @@ The executable will be created in the `dist` directory.
 ## Project Structure
 
 - `web_scraper.py`: Main script containing the web scraper logic
-- `web_scraper.spec`: PyInstaller specification file for creating the executable
 - `requirements.txt`: List of Python dependencies
+
+## Executable
+
+A pre-built executable is available in the `dist` folder. You can download and run it directly without needing to install Python or any dependencies.
+
+### Usage of pre-built executable:
+
+On Unix-like systems (macOS, Linux):
 
 ## Contributing
 
