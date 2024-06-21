@@ -83,6 +83,19 @@ def get_sitemap_urls(base_url):
     print(f"No sitemap found. Scraping the provided URL: {base_url}")
     return [base_url]
 
+def group_urls(urls):
+    groups = defaultdict(list)
+    for url in urls:
+        parsed = urlparse(url)
+        path = parsed.path.strip('/')
+        parts = path.split('/')
+        if len(parts) > 1:
+            group = parts[0]
+        else:
+            group = 'root'
+        groups[group].append(url)
+    return groups
+
 def main():
     parser = argparse.ArgumentParser(description="Web scraper for text content")
     parser.add_argument("url", help="Base URL to scrape")
@@ -90,17 +103,19 @@ def main():
     args = parser.parse_args()
 
     urls = get_sitemap_urls(args.url) if args.sitemap else [args.url]
+    grouped_urls = group_urls(urls)
 
     domain_name = get_domain_name(args.url)
-    output_filename = os.path.join(os.getcwd(), f"{domain_name}_content.txt")
 
-    with open(output_filename, 'w', encoding='utf-8') as output_file:
-        for index, url in enumerate(urls, 1):
-            print(f"\nScraping: {url}")
-            output_file.write(f"\n\n--- Content from: {url} ---\n\n")
-            extract_text_from_url(url, output_file)
+    for group, group_urls in grouped_urls.items():
+        output_filename = os.path.join(os.getcwd(), f"{domain_name}_{group}_content.txt")
+        with open(output_filename, 'w', encoding='utf-8') as output_file:
+            for url in group_urls:
+                print(f"\nScraping: {url}")
+                output_file.write(f"\n\n--- Content from: {url} ---\n\n")
+                extract_text_from_url(url, output_file)
 
-    print(f"All content has been saved to {output_filename}")
+        print(f"Content for group '{group}' has been saved to {output_filename}")
 
 if __name__ == "__main__":
     main()
