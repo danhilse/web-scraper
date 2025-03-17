@@ -5,6 +5,7 @@ import argparse
 import os
 from urllib.parse import urlparse, urljoin
 import string
+from collections import defaultdict
 
 def get_domain_name(url):
     parsed_url = urlparse(url)
