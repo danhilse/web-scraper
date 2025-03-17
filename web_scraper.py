@@ -5,6 +5,7 @@ import argparse
 import os
 from urllib.parse import urlparse, urljoin
 import string
+from collections import defaultdict
 
 def get_domain_name(url):
     parsed_url = urlparse(url)
@@ -107,10 +108,10 @@ def main():
 
     domain_name = get_domain_name(args.url)
 
-    for group, group_urls in grouped_urls.items():
+    for group, urls_in_group in grouped_urls.items():
         output_filename = os.path.join(os.getcwd(), f"{domain_name}_{group}_content.txt")
         with open(output_filename, 'w', encoding='utf-8') as output_file:
-            for url in group_urls:
+            for url in urls_in_group:
                 print(f"\nScraping: {url}")
                 output_file.write(f"\n\n--- Content from: {url} ---\n\n")
                 extract_text_from_url(url, output_file)
