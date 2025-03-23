@@ -68,12 +68,13 @@ class Formatter:
             if "og_description" in og_metadata:
                 result += f"**Description:** {og_metadata['og_description']}\n\n"
         
-        # Add processing information
-        result += f"Estimated token count: {scraped_data.get('token_count', 'Unknown')}\n"
-        if scraped_data.get("processing_time"):
-            result += f"Processing time: {scraped_data['processing_time']:.2f} seconds\n\n"
-        else:
-            result += "\n"
+        # Remove the token count and processing time metadata
+        # The following two lines are commented out to remove them from the output
+        # result += f"Estimated token count: {scraped_data.get('token_count', 'Unknown')}\n"
+        # if scraped_data.get("processing_time"):
+        #     result += f"Processing time: {scraped_data['processing_time']:.2f} seconds\n\n"
+        # else:
+        #     result += "\n"
             
         # Add separator
         result += "---\n\n"
@@ -118,7 +119,9 @@ class Formatter:
         metadata = ET.SubElement(root, "metadata")
         ET.SubElement(metadata, "title").text = scraped_data["title"]
         ET.SubElement(metadata, "url").text = scraped_data["url"]
-        ET.SubElement(metadata, "token_count").text = str(scraped_data.get("token_count", 0))
+        
+        # Remove token count from XML output
+        # ET.SubElement(metadata, "token_count").text = str(scraped_data.get("token_count", 0))
         
         # Process the content
         soup = BeautifulSoup(str(scraped_data["content"]), "html.parser")
@@ -175,10 +178,10 @@ class Formatter:
         if not scraped_data["content"]:
             return f"<!-- Error fetching content from {scraped_data['url']} -->\n<h1>{scraped_data['title']}</h1>"
         
-        # Add metadata as HTML comments
+        # Add metadata as HTML comments, but remove token count and processing time
         result = f"<!-- Title: {scraped_data['title']} -->\n"
         result += f"<!-- Source: {scraped_data['url']} -->\n"
-        result += f"<!-- Estimated token count: {scraped_data.get('token_count', 'Unknown')} -->\n\n"
+        # result += f"<!-- Estimated token count: {scraped_data.get('token_count', 'Unknown')} -->\n\n"
         
         # Add the raw HTML content
         result += scraped_data["raw_html"]
