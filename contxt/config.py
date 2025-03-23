@@ -10,6 +10,9 @@ DEFAULT_CONFIG = {
         "format": "markdown",  # markdown, xml, raw
         "destination": "print", # print, file, clipboard
         "directory": None,      # Default is current directory
+        "saved_directories": [  # Saved directory paths with names
+            # Example: {"name": "Documents", "path": "~/Documents/contxt_output"}
+        ],
     },
     "scraping": {
         "mode": "basic",       # basic, advanced, super

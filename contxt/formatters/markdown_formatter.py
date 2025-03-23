@@ -285,3 +285,8 @@ class MarkdownFormatter(BaseFormatter):
     def save_to_file(self, formatted_content, url, output_dir=None):
         """Save formatted content to a file."""
         return super().save_to_file(formatted_content, url, output_dir, extension="md")
+    
+    # For MarkdownFormatter:
+    def get_extension(self):
+        """Get the file extension for Markdown."""
+        return "md"

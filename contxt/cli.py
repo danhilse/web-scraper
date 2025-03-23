@@ -13,9 +13,9 @@ from rich.text import Text
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from .scraper import Scraper
-# Replace the old formatter import with the new formatters package
 from .formatters import get_formatter
 from .config import load_config, save_config, update_config
+from .outputs import get_output_handler
 
 # Set up logging
 logging.basicConfig(
@@ -93,7 +93,6 @@ def process_url(url, config):
             include_images=config["scraping"]["include_images"],
             image_map=image_map
         )
-
         
         formatted_content = formatter.format(scraped_data)
         
@@ -218,21 +217,83 @@ def interactive_prompt(config, is_config_mode=False):
         
         # Custom directory for file output
         if destination_choice == "file":
-            default_dir = config["output"].get("directory", os.getcwd())
+            # Prepare directory options
+            dir_options = []
             
-            custom_dir = questionary.text(
-                "Enter output directory path:",
-                default=default_dir,
+            # Option 1: Working directory (default)
+            working_dir = os.getcwd()
+            dir_options.append(questionary.Choice(
+                title=f"Working directory ({working_dir})", 
+                value={"type": "working", "path": working_dir}
+            ))
+            
+            # Option 2: Saved directories from config
+            saved_dirs = config["output"].get("saved_directories", [])
+            for saved_dir in saved_dirs:
+                expanded_path = os.path.expanduser(saved_dir["path"])
+                dir_options.append(questionary.Choice(
+                    title=f"{saved_dir['name']} ({expanded_path})", 
+                    value={"type": "saved", "path": expanded_path, "name": saved_dir["name"]}
+                ))
+            
+            # Option 3: Custom path
+            dir_options.append(questionary.Choice(
+                title="Custom path...", 
+                value={"type": "custom", "path": None}
+            ))
+            
+            # Ask user to select directory option
+            dir_choice = questionary.select(
+                "Select output directory:",
+                choices=dir_options,
                 style=custom_style
             ).ask()
             
-            custom_dir = os.path.expanduser(custom_dir)
-            interactive_config["output"]["directory"] = custom_dir
+            # Handle custom path option
+            if dir_choice["type"] == "custom":
+                # Default to current directory or previously selected directory
+                default_dir = config["output"].get("directory") or working_dir
+                
+                custom_path = questionary.text(
+                    "Enter output directory path:",
+                    default=default_dir,
+                    style=custom_style
+                ).ask()
+                
+                custom_path = os.path.expanduser(custom_path)
+                dir_choice["path"] = custom_path
+                
+                # Ask if user wants to save this directory for future use
+                save_dir = questionary.confirm(
+                    "Save this directory for future use?",
+                    default=False,
+                    style=custom_style
+                ).ask()
+                
+                if save_dir:
+                    dir_name = questionary.text(
+                        "Enter a name for this directory:",
+                        style=custom_style
+                    ).ask()
+                    
+                    if dir_name:
+                        # Add to saved directories
+                        if "saved_directories" not in interactive_config["output"]:
+                            interactive_config["output"]["saved_directories"] = []
+                        
+                        interactive_config["output"]["saved_directories"].append({
+                            "name": dir_name,
+                            "path": custom_path
+                        })
+            
+            # Set the selected directory path (ensure it's a string not a dict)
+            interactive_config["output"]["directory"] = dir_choice["path"]
+            custom_dir = dir_choice["path"]  # Update the custom_dir variable to return
             
             # Custom naming for files
             custom_name = questionary.text(
                 "Enter custom name prefix for output files (empty for default):",
-                default="",
+                default=config["output"].get("custom_name", ""),
                 style=custom_style
             ).ask()
             
@@ -262,14 +323,130 @@ def interactive_prompt(config, is_config_mode=False):
     return urls, custom_dir
 
 
+def manage_saved_directories(config):
+    """Allow user to add, edit, or remove saved directories."""
+    saved_dirs = config["output"].get("saved_directories", [])
+    
+    console.print("\n[cyan bold]Manage Saved Directories[/cyan bold]")
+    
+    if not saved_dirs:
+        console.print("[yellow]No saved directories found.[/yellow]")
+    else:
+        # List all saved directories
+        console.print("\nSaved directories:")
+        for i, dir_info in enumerate(saved_dirs, 1):
+            console.print(f"{i}. {dir_info['name']} ({os.path.expanduser(dir_info['path'])})")
+    
+    # Options for directory management
+    actions = [
+        questionary.Choice(title="Add new directory", value="add"),
+        questionary.Choice(title="Remove directory", value="remove", disabled=not saved_dirs),
+        questionary.Choice(title="Back to main menu", value="back")
+    ]
+    
+    action = questionary.select(
+        "Select action:",
+        choices=actions,
+        style=custom_style
+    ).ask()
+    
+    if action == "add":
+        # Add new directory
+        dir_path = questionary.text(
+            "Enter directory path:",
+            style=custom_style
+        ).ask()
+        
+        dir_path = os.path.expanduser(dir_path)
+        
+        # Validate directory
+        if not os.path.isdir(dir_path):
+            create_dir = questionary.confirm(
+                f"Directory {dir_path} does not exist. Create it?",
+                style=custom_style
+            ).ask()
+            
+            if create_dir:
+                try:
+                    os.makedirs(dir_path, exist_ok=True)
+                except Exception as e:
+                    console.print(f"[red]Failed to create directory: {e}[/red]")
+                    return False
+            else:
+                return False
+        
+        dir_name = questionary.text(
+            "Enter a name for this directory:",
+            style=custom_style
+        ).ask()
+        
+        if dir_name:
+            if "saved_directories" not in config["output"]:
+                config["output"]["saved_directories"] = []
+            
+            config["output"]["saved_directories"].append({
+                "name": dir_name,
+                "path": dir_path
+            })
+            
+            console.print(f"[green]Added directory: {dir_name} ({dir_path})[/green]")
+            return True
+    
+    elif action == "remove":
+        # Remove a directory
+        if saved_dirs:
+            dir_choices = [
+                questionary.Choice(
+                    title=f"{dir_info['name']} ({os.path.expanduser(dir_info['path'])})", 
+                    value=i
+                ) for i, dir_info in enumerate(saved_dirs)
+            ]
+            
+            dir_choices.append(questionary.Choice(title="Cancel", value=None))
+            
+            dir_index = questionary.select(
+                "Select directory to remove:",
+                choices=dir_choices,
+                style=custom_style
+            ).ask()
+            
+            if dir_index is not None:
+                removed = config["output"]["saved_directories"].pop(dir_index)
+                console.print(f"[green]Removed directory: {removed['name']}[/green]")
+                return True
+    
+    return False
+
 def configuration_prompt():
     """Dedicated configuration prompt."""
     config = load_config()
     
     console.print("[cyan bold]Configure Default Settings[/cyan bold]")
     
-    # Run through the interactive prompt in config mode
-    interactive_prompt(config, is_config_mode=True)
+    # Main configuration options
+    config_options = [
+        questionary.Choice(title="General settings", value="general"),
+        questionary.Choice(title="Manage saved directories", value="directories"),
+        questionary.Choice(title="Exit", value="exit")
+    ]
+    
+    while True:
+        choice = questionary.select(
+            "Select configuration option:",
+            choices=config_options,
+            style=custom_style
+        ).ask()
+        
+        if choice == "general":
+            # Run through the interactive prompt in config mode
+            interactive_prompt(config, is_config_mode=True)
+            config = load_config()  # Reload config after changes
+        elif choice == "directories":
+            if manage_saved_directories(config):
+                save_config(config)
+                config = load_config()  # Reload config after changes
+        elif choice == "exit":
+            break
 
 
 @click.command()
@@ -369,6 +546,28 @@ def main(urls, mode, format, include_images,
             "total_images": 0
         }
         
+        # Determine the extension based on the selected format
+        extension_map = {
+            "markdown": ".md",
+            "xml": ".xml", 
+            "raw": ".html"
+        }
+        extension = extension_map.get(user_config["output"]["format"])
+        
+        # Create the output_handler here before it is used
+        if user_config["output"]["destination"] == "print":
+            output_handler = get_output_handler("print", console=console)
+        elif user_config["output"]["destination"] == "file":
+            output_handler = get_output_handler(
+                "file",
+                directory=user_config["output"].get("directory"),
+                custom_name=user_config["output"].get("custom_name")
+            )
+        elif user_config["output"]["destination"] == "clipboard":
+            output_handler = get_output_handler("clipboard")
+        else:
+            output_handler = get_output_handler("print", console=console)
+        
         for url in urls:
             # Check if we're exiting
             if is_exiting:
@@ -388,10 +587,9 @@ def main(urls, mode, format, include_images,
                 
                 # Print immediately if not combining and destination is print
                 if not user_config["organization"]["single_file"] and user_config["output"]["destination"] == "print":
-                    console.print("\n" + "=" * 40 + "\n")
-                    console.print(f"[cyan bold]Content from {source_url}:[/cyan bold]")
-                    console.print("\n" + "=" * 40 + "\n")
-                    console.print(formatted_content)
+                    # Get output handler for printing to console
+                    output_handler = get_output_handler("print", console=console)
+                    output_handler.output(formatted_content, source=source_url)
             else:
                 # Count as failed
                 stats["failed"] += 1
@@ -409,53 +607,71 @@ def main(urls, mode, format, include_images,
             console.print("[red]No content was successfully processed.[/red]")
             return
         
-        if user_config["organization"]["single_file"]:
+        # Get appropriate extension based on format
+        extension_map = {
+            "markdown": ".md",
+            "xml": ".xml", 
+            "raw": ".html"
+        }
+        extension = extension_map.get(user_config["output"]["format"])
+        
+        # Create output handler with appropriate configuration
+        if user_config["output"]["destination"] == "print":
+            output_handler = get_output_handler("print", console=console)
+        elif user_config["output"]["destination"] == "clipboard":
+            output_handler = get_output_handler("clipboard")
+        else:
+            # Default to console
+            output_handler = get_output_handler("print", console=console)
+        
+        if user_config["organization"]["single_file"] and len(all_content) > 1:
             # Combine all content into a single output
             combined = "\n\n" + "=" * 50 + "\n\n".join([content for content, _, _, _ in all_content])
             
             if user_config["output"]["destination"] == "print":
-                console.print(combined)
+                output_handler.output(combined)
             elif user_config["output"]["destination"] == "file":
-                # Save to file
-                output_dir = user_config["output"].get("directory") or None
-                
-                # Generate file name with custom prefix if provided
+                # Create a combined filename
                 if user_config["output"].get("custom_name"):
-                    custom_prefix = user_config["output"]["custom_name"]
-                    file_name = f"{custom_prefix}_combined"
+                    source_name = f"{user_config['output']['custom_name']}_combined"
                 else:
-                    file_name = "combined_" + "_".join([url.split("//")[-1].split("/")[0] for url in urls[:3]])
-                
-                file_path = all_content[0][2].save_to_file(
-                    combined,
-                    file_name,
-                    output_dir
+                    # Try to use the title of the first document if available
+                    first_scraped_data = all_content[0][3] if all_content else {}
+                    first_title = first_scraped_data.get("title")
+                    if first_title:
+                        source_name = f"{first_title}_plus_{len(all_content)-1}_more"
+                    else:
+                        source_name = "combined_" + "_".join([
+                            urlparse(url).netloc for url in [item[1] for item in all_content][:3]
+                        ])
+                file_path = output_handler.output(
+                    combined, 
+                    source=source_name, 
+                    extension=extension,
+                    title=source_name
                 )
-                console.print(f"[green bold]Combined content saved to:[/green bold] {file_path}")
+                if file_path:
+                    console.print(f"[green bold]Combined content saved to:[/green bold] {file_path}")
             elif user_config["output"]["destination"] == "clipboard":
-                # Copy to clipboard
-                success = all_content[0][2].copy_to_clipboard(combined)
+                success = output_handler.output(combined)
                 if success:
                     console.print("[green bold]Combined content copied to clipboard.[/green bold]")
                 else:
                     console.print("[red]Failed to copy content to clipboard.[/red]")
-        else:
-            # Handle individual files
-            if user_config["output"]["destination"] == "file":
-                output_dir = user_config["output"].get("directory") or None
-                for content, url, formatter, _ in all_content:
-                    # Use custom name prefix if provided
-                    if user_config["output"].get("custom_name"):
-                        custom_prefix = user_config["output"]["custom_name"]
-                        domain = urlparse(url).netloc
-                        file_name = f"{custom_prefix}_{domain}"
-                        file_path = formatter.save_to_file(content, file_name, output_dir)
-                    else:
-                        file_path = formatter.save_to_file(content, url, output_dir)
-                    console.print(f"[green bold]Content from {url} saved to:[/green bold] {file_path}")
+        elif not user_config["organization"]["single_file"] or len(all_content) == 1:
+            # Handle individual outputs (we've already handled the print case above for multiple files)
+            if user_config["output"]["destination"] == "print" and len(all_content) == 1:
+                # Single file print case
+                output_handler.output(all_content[0][0], source=all_content[0][1])
+            elif user_config["output"]["destination"] == "file":
+                # Save each file individually
+                for content, url, _, _ in all_content:
+                    file_path = output_handler.output(content, source=url, extension=extension)
+                    if file_path:
+                        console.print(f"[green bold]Content from {url} saved to:[/green bold] {file_path}")
             elif user_config["output"]["destination"] == "clipboard" and len(all_content) == 1:
-                # Copy to clipboard (only for single URL when not combining)
-                success = all_content[0][2].copy_to_clipboard(all_content[0][0])
+                # Copy to clipboard (only for single URL)
+                success = output_handler.output(all_content[0][0])
                 if success:
                     console.print(f"[green bold]Content from {all_content[0][1]} copied to clipboard.[/green bold]")
                 else:

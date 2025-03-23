@@ -1,1 +1,4 @@
 - concurrency
+- amalgamate or split
+- txt output or formatted output
+- change defaults? (Yes, No, Stop Asking)

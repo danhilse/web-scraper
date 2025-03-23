@@ -351,3 +351,7 @@ class HTMLFormatter(BaseFormatter):
         """
         extension = "html"
         return super().save_to_file(formatted_content, url, output_dir, extension=extension)
+    
+    def get_extension(self):
+        """Get the file extension for raw HTML."""
+        return "html"

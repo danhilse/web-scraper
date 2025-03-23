@@ -1,8 +1,4 @@
 import logging
-import re
-from pathlib import Path
-from urllib.parse import urlparse
-import pyperclip
 
 logger = logging.getLogger(__name__)
 
@@ -34,75 +30,15 @@ class BaseFormatter:
         """
         raise NotImplementedError("Subclasses must implement the format method.")
     
-    def save_to_file(self, formatted_content, url, output_dir=None, extension=None):
+    def get_extension(self):
         """
-        Save formatted content to a file.
+        Get the file extension for this formatter type.
+        To be implemented by subclasses.
         
-        Args:
-            formatted_content (str): Formatted content to save
-            url (str): Source URL
-            output_dir (str, optional): Output directory
-            extension (str, optional): File extension to use
-            
         Returns:
-            str: Path to the saved file
+            str: File extension (without dot)
         """
-        # Create a filename based on the URL
-        parsed_url = urlparse(url)
-        domain = parsed_url.netloc
-        path = parsed_url.path.rstrip("/")
-        
-        if not path:
-            path = "index"
-        else:
-            path = path.replace("/", "_").lstrip("_")
-        
-        filename = f"{domain}_{path}"
-        
-        # Clean up filename and limit length
-        filename = re.sub(r'[^\w\-_.]', '_', filename)
-        filename = filename[:100]  # Limit filename length
-        
-        # Add extension if provided
-        if extension:
-            if not extension.startswith('.'):
-                extension = f".{extension}"
-            filename += extension
-        
-        # Determine output path
-        if output_dir:
-            output_path = Path(output_dir)
-        else:
-            output_path = Path.cwd()
-        
-        # Ensure output directory exists
-        output_path.mkdir(parents=True, exist_ok=True)
-        
-        # Save the file
-        file_path = output_path / filename
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(formatted_content)
-        
-        logger.info(f"Saved formatted content to {file_path}")
-        return str(file_path)
-    
-    def copy_to_clipboard(self, formatted_content):
-        """
-        Copy formatted content to clipboard.
-        
-        Args:
-            formatted_content (str): Formatted content to copy
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            pyperclip.copy(formatted_content)
-            logger.info("Copied formatted content to clipboard")
-            return True
-        except Exception as e:
-            logger.error(f"Error copying to clipboard: {e}")
-            return False
+        raise NotImplementedError("Subclasses must implement the get_extension method.")
     
     def extract_metadata(self, scraped_data):
         """
