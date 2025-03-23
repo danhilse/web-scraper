@@ -74,25 +74,56 @@ class Scraper:
                 result = self._scrape_basic(url, include_images)
         
         # Log completion
-        if result["content"]:
+        if result["content_html"]:
             logger.info(f"Completed scraping {url} in {result.get('processing_time', 0):.2f} seconds - {result.get('token_count', 0)} tokens")
         else:
             logger.warning(f"Failed to scrape content from {url}")
         
         return result
     
-    def _scrape_basic(self, url, include_images):
-        """Basic scraping using requests and BeautifulSoup."""
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
+    def _scrape(self, url, include_images, use_selenium=False, wait_time=0, headless=True):
+        """
+        Generic scraping function that can be used by all scraping modes.
+        
+        Args:
+            url (str): URL to scrape
+            include_images (bool): Whether to include images
+            use_selenium (bool): Whether to use Selenium for JavaScript support
+            wait_time (int): Time to wait for dynamic content in seconds
+            headless (bool): Whether to run browser in headless mode (Selenium only)
+            
+        Returns:
+            dict: Dictionary containing metadata and content
+        """
+        start_time = time.time()
+        driver = None
         
         try:
-            start_time = time.time()
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, "html.parser")
+            if use_selenium:
+                # Use Selenium for JavaScript heavy sites
+                driver = self._create_driver(headless=headless)
+                driver.get(url)
+                
+                # Wait for dynamic content if specified
+                if wait_time > 0:
+                    time.sleep(wait_time)
+                    
+                    # For super mode, also use explicit waits
+                    if wait_time > 10:
+                        WebDriverWait(driver, 20).until(
+                            EC.presence_of_element_located((By.TAG_NAME, "body"))
+                        )
+                
+                page_source = driver.page_source
+                soup = BeautifulSoup(page_source, "html.parser")
+            else:
+                # Use requests for basic sites
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                }
+                response = requests.get(url, headers=headers, timeout=30)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, "html.parser")
             
             # Extract metadata
             title = soup.title.text.strip() if soup.title else ""
@@ -123,8 +154,19 @@ class Scraper:
                     og_image_url = urljoin(url, og_metadata["og_image"])
                     images.append({"url": og_image_url, "alt": "OpenGraph image"})
             
+            # Extract text and HTML content to avoid BeautifulSoup recursion issues
+            content_text = main_content.get_text(separator='\n') if main_content else ""
+            content_html = str(main_content) if main_content else ""
+            
+            # Instead of passing BeautifulSoup objects to the formatter, 
+            # we'll provide simplified HTML strings to prevent recursion issues
+            simplified_html = content_html
+            
+            # Declare this variable with a default value to avoid reference errors
+            simplified_soup = None
+            
             # Count tokens
-            token_count = self._count_tokens(str(main_content))
+            token_count = self._count_tokens(content_text)
             
             end_time = time.time()
             processing_time = end_time - start_time
@@ -132,9 +174,12 @@ class Scraper:
             return {
                 "url": url,
                 "title": title,
-                "content": main_content,
+                "content_text": content_text,
+                "content_html": content_html,
+                # Always use a string for content to avoid recursion issues with BeautifulSoup
+                "content": simplified_html,
                 "images": images,
-                "raw_html": str(main_content),
+                "raw_html": content_html,
                 "token_count": token_count,
                 "og_metadata": og_metadata,
                 "processing_time": processing_time
@@ -145,14 +190,59 @@ class Scraper:
             return {
                 "url": url,
                 "title": f"Error: {str(e)}",
-                "content": None,
+                "content_text": "",
+                "content_html": "",
+                "content": "",  # For backward compatibility
                 "images": [],
                 "raw_html": "",
                 "token_count": 0,
                 "og_metadata": {},
                 "processing_time": 0
             }
+        finally:
+            # Always close the driver to clean up resources
+            if driver:
+                driver.quit()
     
+    def _scrape_basic(self, url, include_images):
+        """Basic scraping using requests and BeautifulSoup."""
+        return self._scrape(
+            url, 
+            include_images, 
+            use_selenium=False, 
+            wait_time=0, 
+            headless=True
+        )
+    
+    def _scrape_advanced(self, url, include_images):
+        """Advanced scraping using Selenium for JavaScript-heavy sites."""
+        return self._scrape(
+            url, 
+            include_images, 
+            use_selenium=True, 
+            wait_time=5, 
+            headless=True
+        )
+    
+    def _scrape_super(self, url, include_images):
+        """Super scraping using Selenium with extended wait time for complex sites."""
+        return self._scrape(
+            url, 
+            include_images, 
+            use_selenium=True, 
+            wait_time=15, 
+            headless=False
+        )
+    
+    def close(self):
+        """
+        Dummy close method for backward compatibility.
+        Since we're creating and destroying WebDriver instances per URL,
+        there's no need to explicitly close anything at the class level.
+        """
+        pass
+    
+    # The following methods remain unchanged from the original implementation
     def _create_driver(self, headless=True):
         """Create an appropriate WebDriver for the current platform."""
         driver = None
@@ -255,180 +345,6 @@ class Scraper:
         # If we get here, all attempts failed
         raise Exception("Could not create a compatible WebDriver")
     
-    def _scrape_advanced(self, url, include_images):
-        """Advanced scraping using Selenium for JavaScript-heavy sites - standalone version."""
-        driver = None
-        try:
-            start_time = time.time()
-            
-            # Create a new browser instance
-            driver = self._create_driver(headless=True)
-            
-            # Get the URL
-            driver.get(url)
-            
-            # Wait for dynamic content
-            time.sleep(5)
-            
-            # Get the page source after JS has loaded
-            page_source = driver.page_source
-            soup = BeautifulSoup(page_source, "html.parser")
-            
-            # Extract metadata
-            title = soup.title.text.strip() if soup.title else ""
-            
-            # Clean HTML to remove unnecessary elements
-            cleaned_soup, og_metadata = self._clean_html(soup)
-            
-            # Extract main content - prioritize main tag first
-            main_content = (
-                cleaned_soup.find("main") or 
-                cleaned_soup.find("article") or 
-                cleaned_soup.find("div", {"id": "content"}) or 
-                cleaned_soup.find("div", {"class": "content"}) or
-                cleaned_soup.find("div", {"role": "main"})
-            )
-            
-            if not main_content:
-                # Fallback to body if no specific content area found
-                main_content = cleaned_soup.body
-            
-            # Process images if requested
-            images = []
-            if include_images and main_content:
-                images = self._extract_images(main_content, url)
-                
-                # Also add OpenGraph image if available
-                if og_metadata.get("og_image"):
-                    og_image_url = urljoin(url, og_metadata["og_image"])
-                    images.append({"url": og_image_url, "alt": "OpenGraph image"})
-            
-            # Count tokens
-            token_count = self._count_tokens(str(main_content))
-            
-            end_time = time.time()
-            processing_time = end_time - start_time
-            
-            return {
-                "url": url,
-                "title": title,
-                "content": main_content,
-                "images": images,
-                "raw_html": str(main_content),
-                "token_count": token_count,
-                "og_metadata": og_metadata,
-                "processing_time": processing_time
-            }
-            
-        except Exception as e:
-            logger.error(f"Error scraping {url} with Selenium: {e}")
-            return {
-                "url": url,
-                "title": f"Error: {str(e)}",
-                "content": None,
-                "images": [],
-                "raw_html": "",
-                "token_count": 0,
-                "og_metadata": {},
-                "processing_time": 0
-            }
-        finally:
-            # Always close the driver to clean up resources
-            if driver:
-                driver.quit()
-    
-    def _scrape_super(self, url, include_images):
-        """Super scraping using Selenium with WebDriverWait for complex sites."""
-        driver = None
-        try:
-            start_time = time.time()
-            
-            # Create a new browser instance (non-headless for super mode)
-            driver = self._create_driver(headless=False)
-            
-            # Get the URL
-            driver.get(url)
-            
-            # Wait for dynamic content with explicit wait
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-            
-            # Get the page source after JS has loaded
-            page_source = driver.page_source
-            soup = BeautifulSoup(page_source, "html.parser")
-            
-            # Extract metadata
-            title = soup.title.text.strip() if soup.title else ""
-            
-            # Clean HTML to remove unnecessary elements
-            cleaned_soup, og_metadata = self._clean_html(soup)
-            
-            # Extract main content - prioritize main tag first
-            main_content = (
-                cleaned_soup.find("main") or 
-                cleaned_soup.find("article") or 
-                cleaned_soup.find("div", {"id": "content"}) or 
-                cleaned_soup.find("div", {"class": "content"}) or
-                cleaned_soup.find("div", {"role": "main"})
-            )
-            
-            if not main_content:
-                # Fallback to body if no specific content area found
-                main_content = cleaned_soup.body
-            
-            # Process images if requested
-            images = []
-            if include_images and main_content:
-                images = self._extract_images(main_content, url)
-                
-                # Also add OpenGraph image if available
-                if og_metadata.get("og_image"):
-                    og_image_url = urljoin(url, og_metadata["og_image"])
-                    images.append({"url": og_image_url, "alt": "OpenGraph image"})
-            
-            # Count tokens
-            token_count = self._count_tokens(str(main_content))
-            
-            end_time = time.time()
-            processing_time = end_time - start_time
-            
-            return {
-                "url": url,
-                "title": title,
-                "content": main_content,
-                "images": images,
-                "raw_html": str(main_content),
-                "token_count": token_count,
-                "og_metadata": og_metadata,
-                "processing_time": processing_time
-            }
-            
-        except Exception as e:
-            logger.error(f"Error scraping {url} with Selenium: {e}")
-            return {
-                "url": url,
-                "title": f"Error: {str(e)}",
-                "content": None,
-                "images": [],
-                "raw_html": "",
-                "token_count": 0,
-                "og_metadata": {},
-                "processing_time": 0
-            }
-        finally:
-            # Always close the driver to clean up resources
-            if driver:
-                driver.quit()
-    
-    def close(self):
-        """
-        Dummy close method for backward compatibility.
-        Since we're creating and destroying WebDriver instances per URL,
-        there's no need to explicitly close anything at the class level.
-        """
-        pass
-    
     def _extract_images(self, content, base_url):
         """Extract images from content with proper URL handling."""
         images = []
@@ -498,13 +414,21 @@ class Scraper:
         self._concatenate_spans(soup_copy)
         
         # Clean text content (remove SVG content, normalize whitespace)
-        for tag in soup_copy.find_all(text=True):
+        # Get a static list of all text nodes
+        text_nodes = list(soup_copy.find_all(text=True))
+        
+        # Process text nodes without modifying the tree during iteration
+        for tag in text_nodes:
             if tag.parent and not isinstance(tag, Comment):
-                # Remove SVG content
-                cleaned_text = re.sub(r'<svg.*?</svg>\s*', '', tag.string, flags=re.DOTALL) if tag.string else ""
-                # Normalize whitespace
-                cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
-                tag.replace_with(cleaned_text)
+                # Only process if tag has a string attribute to avoid AttributeError
+                if hasattr(tag, 'string') and tag.string:
+                    # Remove SVG content
+                    cleaned_text = re.sub(r'<svg.*?</svg>\s*', '', tag.string, flags=re.DOTALL)
+                    # Normalize whitespace
+                    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+                    # Replace the text content only if it changed
+                    if cleaned_text != tag.string:
+                        tag.replace_with(cleaned_text)
         
         return soup_copy, og_metadata
     
@@ -530,28 +454,65 @@ class Scraper:
         return metadata
     
     def _deduplicate_list_items(self, soup):
-        """Deduplicate list items to avoid repetition."""
+        """
+        Deduplicate list items to avoid repetition.
+        Uses a two-phase approach to avoid modifying the tree while iterating.
+        """
         seen_list_items = set()
+        items_to_remove = []
         
+        # First phase: identify duplicates
         for li in soup.find_all("li"):
             text = li.get_text(strip=True)
             if text in seen_list_items:
-                li.decompose()  # Remove duplicate
+                items_to_remove.append(li)  # Mark for removal
             else:
                 seen_list_items.add(text)
+        
+        # Second phase: remove duplicates
+        for li in items_to_remove:
+            li.decompose()
     
     def _concatenate_spans(self, soup):
-        """Concatenate adjacent span elements."""
-        # Find all spans
-        spans = soup.find_all("span")
-        
-        # Process spans that are adjacent siblings
-        for i, span in enumerate(spans[:-1]):
-            # Check if next span is a sibling
-            if span.next_sibling == spans[i + 1]:
-                # Concatenate the text
-                spans[i + 1].string = f"{span.get_text()} {spans[i + 1].get_text()}"
-                # Remove the current span
+        """
+        Concatenate adjacent span elements safely without recursion issues.
+        Uses an iterative approach to avoid modifying the tree while iterating.
+        """
+        # Process each parent that might contain spans
+        for parent in soup.find_all(lambda tag: tag.find('span')):
+            # Get a static list of all direct children
+            children = list(parent.children)
+            
+            # Track spans to remove after processing
+            spans_to_remove = []
+            
+            # Process children looking for adjacent spans
+            i = 0
+            while i < len(children) - 1:
+                current = children[i]
+                next_elem = children[i + 1]
+                
+                # Check if both are span elements
+                if current.name == 'span' and next_elem.name == 'span':
+                    # Combine text content
+                    current_text = current.get_text(strip=True)
+                    next_text = next_elem.get_text(strip=True)
+                    
+                    if current_text and next_text:
+                        # Update the next span's text
+                        if next_elem.string:
+                            next_elem.string = f"{current_text} {next_text}"
+                        else:
+                            next_elem.clear()
+                            next_elem.append(f"{current_text} {next_text}")
+                        
+                        # Mark current span for removal
+                        spans_to_remove.append(current)
+                
+                i += 1
+            
+            # Remove spans after processing the entire parent
+            for span in spans_to_remove:
                 span.decompose()
     
     def _count_tokens(self, text, model="cl100k_base"):
