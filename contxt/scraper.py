@@ -32,14 +32,18 @@ except ImportError:
     SELENIUM_AVAILABLE = False
 
 class Scraper:
-    def __init__(self, mode="basic"):
+    def __init__(self, mode="basic", include_comments=False, max_videos=30):
         """
-        Initialize the scraper with the specified mode.
+        Initialize the scraper with the specified mode and YouTube options.
         
         Args:
             mode (str): Scraping mode - "basic", "advanced", or "super"
+            include_comments (bool): Whether to include YouTube comments
+            max_videos (int): Maximum number of videos to process from playlists/channels
         """
         self.mode = mode
+        self.include_comments = include_comments
+        self.max_videos = max_videos
         
         if mode in ["advanced", "super"] and not SELENIUM_AVAILABLE:
             logger.warning("Selenium not available. Falling back to basic mode.")
@@ -58,6 +62,10 @@ class Scraper:
         """
         # Log the start of scraping
         logger.info(f"Scraping {url} using {self.mode} mode...")
+        
+        # Check if URL is a YouTube URL
+        if 'youtube.com' in url or 'youtu.be' in url:
+            return self._scrape_youtube(url, include_images)
         
         # Scrape using the appropriate mode
         if self.mode == "basic":
@@ -611,3 +619,225 @@ class Scraper:
         
         logger.info(f"Images downloaded: {downloaded_count}, duplicates skipped: {duplicate_count}, errors: {error_count}")
         return image_map
+    
+    def _scrape_youtube(self, url, include_images=False):
+        """Handle YouTube-specific scraping."""
+        from .youtube_handler import identify_youtube_url_type, get_transcript, get_video_info
+        from .youtube_handler import get_playlist_videos, get_channel_videos
+        
+        url_type, url_id = identify_youtube_url_type(url)
+        
+        if url_type == 'video':
+            # Single video processing
+            video_info = get_video_info(url_id, include_comments=self.include_comments)
+            transcript = get_transcript(url_id)
+            
+            return {
+                'url': url,
+                'title': f"{video_info['title']} - YouTube",
+                'content_text': f"Title: {video_info['title']}\n\nChannel: {video_info['channel']}\n\nDescription: {video_info['description']}\n\nTranscript:\n{transcript}",
+                'content_html': f"<h1>{video_info['title']}</h1><p>Channel: {video_info['channel']}</p><div>{video_info['description']}</div><h2>Transcript</h2><div>{transcript}</div>",
+                'content': f"<h1>{video_info['title']}</h1><p>Channel: {video_info['channel']}</p><div>{video_info['description']}</div><h2>Transcript</h2><div>{transcript}</div>",
+                'images': [],
+                'token_count': len(transcript.split()),
+                'processing_time': 0,
+                'youtube_data': {
+                    'type': 'video',
+                    'video_info': video_info,
+                    'transcript': transcript
+                }
+            }
+        
+        elif url_type == 'playlist':
+            # Process playlist - get all video IDs and their transcripts
+            video_ids = get_playlist_videos(url_id, self.max_videos)
+            
+            if not video_ids:
+                return {
+                    'url': url,
+                    'title': "YouTube Playlist - No Videos Found",
+                    'content_text': "Could not retrieve videos from playlist.",
+                    'content_html': "<p>Could not retrieve videos from playlist.</p>",
+                    'content': "<p>Could not retrieve videos from playlist.</p>",
+                    'images': [],
+                    'token_count': 0,
+                    'processing_time': 0
+                }
+            
+            # Get playlist info and process each video
+            all_videos_data = []
+            combined_transcript = ""
+            combined_content = ""
+            total_tokens = 0
+            
+            for i, vid_id in enumerate(video_ids):
+                try:
+                    video_info = get_video_info(vid_id, include_comments=self.include_comments)
+                    transcript = get_transcript(vid_id)
+                    
+                    video_data = {
+                        'title': video_info['title'],
+                        'channel': video_info.get('channel', 'Unknown'),
+                        'url': f"https://www.youtube.com/watch?v={vid_id}",
+                        'description': video_info.get('description', ''),
+                        'transcript': transcript,
+                        'comments': video_info.get('comments', [])
+                    }
+                    
+                    all_videos_data.append(video_data)
+                    
+                    # Add to combined content with separator
+                    if i > 0:
+                        combined_transcript += "\n\n" + "=" * 40 + "\n\n"
+                        combined_content += "\n\n" + "=" * 40 + "\n\n"
+                    
+                    # Add to combined transcript
+                    combined_transcript += f"Video {i+1}: {video_data['title']}\n\n{transcript}"
+                    
+                    # Add to combined content HTML
+                    combined_content += f"<h2>Video {i+1}: {video_data['title']}</h2>\n"
+                    combined_content += f"<p>Channel: {video_data['channel']}</p>\n"
+                    combined_content += f"<p>URL: <a href=\"{video_data['url']}\">{video_data['url']}</a></p>\n"
+                    combined_content += f"<div>{video_data['description']}</div>\n"
+                    combined_content += f"<h3>Transcript:</h3>\n<div>{transcript}</div>\n"
+                    
+                    # Add comments if requested
+                    if self.include_comments and 'comments' in video_info:
+                        comment_text = "\n\nComments:\n" + "\n".join([
+                            f"- {comment['author']}: {comment['text']}" 
+                            for comment in video_info['comments'][:10]  # Limit to 10 comments per video
+                        ])
+                        combined_transcript += comment_text
+                        
+                        comment_html = "<h3>Comments:</h3>\n<ul>\n" + "\n".join([
+                            f"<li><strong>{comment['author']}</strong>: {comment['text']}</li>" 
+                            for comment in video_info['comments'][:10]
+                        ]) + "</ul>\n"
+                        combined_content += comment_html
+                    
+                    # Update token count estimate
+                    total_tokens += len(transcript.split())
+                    
+                except Exception as e:
+                    logger.error(f"Error processing video {vid_id} from playlist: {e}")
+                    # Continue with next video
+            
+            return {
+                'url': url,
+                'title': f"YouTube Playlist - {len(all_videos_data)} videos",
+                'content_text': combined_transcript,
+                'content_html': combined_content,
+                'content': combined_content,
+                'images': [],
+                'token_count': total_tokens,
+                'processing_time': 0,
+                'youtube_data': {
+                    'type': 'playlist',
+                    'video_ids': video_ids,
+                    'videos': all_videos_data
+                }
+            }
+        
+        elif url_type == 'channel':
+            # Process channel - get recent video IDs and their transcripts
+            video_ids = get_channel_videos(url_id, self.max_videos)
+            
+            if not video_ids:
+                return {
+                    'url': url,
+                    'title': "YouTube Channel - No Videos Found",
+                    'content_text': "Could not retrieve videos from channel.",
+                    'content_html': "<p>Could not retrieve videos from channel.</p>",
+                    'content': "<p>Could not retrieve videos from channel.</p>",
+                    'images': [],
+                    'token_count': 0,
+                    'processing_time': 0
+                }
+            
+            # Get channel info and process each video (similar to playlist code)
+            all_videos_data = []
+            combined_transcript = ""
+            combined_content = ""
+            total_tokens = 0
+            
+            for i, vid_id in enumerate(video_ids):
+                try:
+                    video_info = get_video_info(vid_id, include_comments=self.include_comments)
+                    transcript = get_transcript(vid_id)
+                    
+                    video_data = {
+                        'title': video_info['title'],
+                        'channel': video_info.get('channel', 'Unknown'),
+                        'url': f"https://www.youtube.com/watch?v={vid_id}",
+                        'description': video_info.get('description', ''),
+                        'transcript': transcript,
+                        'comments': video_info.get('comments', [])
+                    }
+                    
+                    all_videos_data.append(video_data)
+                    
+                    # Add to combined content with separator
+                    if i > 0:
+                        combined_transcript += "\n\n" + "=" * 40 + "\n\n"
+                        combined_content += "\n\n" + "=" * 40 + "\n\n"
+                    
+                    # Add to combined transcript
+                    combined_transcript += f"Video {i+1}: {video_data['title']}\n\n{transcript}"
+                    
+                    # Add to combined content HTML
+                    combined_content += f"<h2>Video {i+1}: {video_data['title']}</h2>\n"
+                    combined_content += f"<p>Channel: {video_data['channel']}</p>\n"
+                    combined_content += f"<p>URL: <a href=\"{video_data['url']}\">{video_data['url']}</a></p>\n"
+                    combined_content += f"<div>{video_data['description']}</div>\n"
+                    combined_content += f"<h3>Transcript:</h3>\n<div>{transcript}</div>\n"
+                    
+                    # Add comments if requested
+                    if self.include_comments and 'comments' in video_info:
+                        comment_text = "\n\nComments:\n" + "\n".join([
+                            f"- {comment['author']}: {comment['text']}" 
+                            for comment in video_info['comments'][:10]  # Limit to 10 comments per video
+                        ])
+                        combined_transcript += comment_text
+                        
+                        comment_html = "<h3>Comments:</h3>\n<ul>\n" + "\n".join([
+                            f"<li><strong>{comment['author']}</strong>: {comment['text']}</li>" 
+                            for comment in video_info['comments'][:10]
+                        ]) + "</ul>\n"
+                        combined_content += comment_html
+                    
+                    # Update token count estimate
+                    total_tokens += len(transcript.split())
+                    
+                except Exception as e:
+                    logger.error(f"Error processing video {vid_id} from channel: {e}")
+                    # Continue with next video
+            
+            channel_name = all_videos_data[0]['channel'] if all_videos_data else 'Unknown'
+            
+            return {
+                'url': url,
+                'title': f"YouTube Channel - {channel_name} ({len(all_videos_data)} videos)",
+                'content_text': combined_transcript,
+                'content_html': combined_content,
+                'content': combined_content,
+                'images': [],
+                'token_count': total_tokens,
+                'processing_time': 0,
+                'youtube_data': {
+                    'type': 'channel',
+                    'video_ids': video_ids,
+                    'videos': all_videos_data
+                }
+            }
+            
+        else:
+            return {
+                'url': url,
+                'title': "Invalid YouTube URL",
+                'content_text': "Could not identify valid YouTube URL type.",
+                'content_html': "<p>Could not identify valid YouTube URL type.</p>",
+                'content': "<p>Could not identify valid YouTube URL type.</p>",
+                'images': [],
+                'token_count': 0,
+                'processing_time': 0
+            }

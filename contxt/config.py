@@ -29,6 +29,11 @@ DEFAULT_CONFIG = {
     "performance": {
         "show_processing_time": True,  # Show processing time in output
         "show_token_count": True,      # Show token count in output
+    },
+    "youtube": {
+        "include_comments": False,
+        "max_videos": 30,
+        "include_description": True
     }
 }
 

@@ -20,35 +20,22 @@ FORMATTERS: Dict[str, Type[BaseFormatter]] = {
     "html": HTMLFormatter,  # Alternative name for the same formatter
 }
 
-def get_formatter(format_type: str, **kwargs) -> Optional[BaseFormatter]:
-    """
-    Get a formatter by type.
-    
-    Args:
-        format_type (str): The formatter type (markdown, xml, raw, html)
-        **kwargs: Additional arguments to pass to the formatter constructor
-        
-    Returns:
-        BaseFormatter: A formatter instance
-        
-    Raises:
-        ValueError: If the format type is not supported
-    """
-    format_type = format_type.lower()
-    formatter_class = FORMATTERS.get(format_type)
-    
-    if not formatter_class:
-        logger.error(f"Unsupported format type: {format_type}")
-        raise ValueError(f"Unsupported format type: {format_type}")
-    
-    # Configure formatter based on type
-    if format_type == "raw":
-        # For raw format, set HTML formatter options to minimize processing
-        kwargs.update({
-            "clean_html": True,
-            "add_boilerplate": False,
-            "add_css": False
-        })
-    
-    # Create and return formatter instance
-    return formatter_class(**kwargs)
+def get_formatter(format_type, include_images=False, image_map=None):
+    """Get the appropriate formatter based on the format type."""
+    if format_type == "markdown":
+        from .markdown_formatter import MarkdownFormatter
+        return MarkdownFormatter(include_images, image_map)
+    elif format_type == "xml":
+        from .xml_formatter import XMLFormatter
+        return XMLFormatter(include_images, image_map)
+    elif format_type == "raw":
+        from .html_formatter import HTMLFormatter
+        return HTMLFormatter(include_images, image_map, clean_html=True, 
+                           add_boilerplate=False, add_css=False)
+    elif format_type == "youtube":
+        from .youtube_formatter import YouTubeFormatter
+        return YouTubeFormatter(include_images, image_map)
+    else:
+        # Default to markdown for unknown types
+        from .markdown_formatter import MarkdownFormatter
+        return MarkdownFormatter(include_images, image_map)
