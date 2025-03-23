@@ -3,9 +3,9 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "webseed"
+name = "contxt"
 version = "0.1.0"
-description = "A modular web content scraping tool"
+description = "A tool for quickly creating context documents for LLMs from various sources"
 readme = "README.md"
 requires-python = ">=3.7"
 license = { text = "MIT" }
@@ -41,14 +41,14 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/webseed"
-"Bug Tracker" = "https://github.com/yourusername/webseed/issues"
+"Homepage" = "https://github.com/yourusername/contxt"
+"Bug Tracker" = "https://github.com/yourusername/contxt/issues"
 
 [project.scripts]
-webseed = "webseed.cli:main"
+contxt = "contxt.cli:main"
 
 [tool.setuptools]
-packages = ["webseed"]
+packages = ["contxt"]
 
 [tool.black]
 line-length = 88

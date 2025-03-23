@@ -1,6 +1,6 @@
-# WebSeed
+# contxt
 
-A modular web content scraping tool that can extract content from various sources and process it into different formats.
+A tool for quickly creating context documents for LLMs from various web sources.
 
 ## Features
 
@@ -21,10 +21,20 @@ A modular web content scraping tool that can extract content from various source
 
 ## Installation
 
+### Using Homebrew (recommended)
+
+```bash
+# Install using Homebrew
+brew tap yourusername/contxt
+brew install contxt
+```
+
+### Manual Installation
+
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/webseed.git
-cd webseed
+git clone https://github.com/yourusername/contxt.git
+cd contxt
 
 # Install the package
 pip install -e .
@@ -34,26 +44,26 @@ pip install -e .
 
 ### Command Line Interface
 
-WebSeed provides a simple CLI that can be used to scrape content:
+contxt provides a simple CLI that can be used to scrape content:
 
 ```bash
 # Run in interactive mode (recommended for first-time users)
-python -m webseed.cli --interactive
+contxt --interactive
 
 # Scrape web pages
-python -m webseed.cli --urls "https://example.com https://python.org" --mode basic --output file --format markdown
+contxt --urls "https://example.com https://python.org" --mode basic --output file --format markdown
 
 # Scrape YouTube content
-python -m webseed.cli --urls "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --youtube-comments --output file --format markdown
+contxt --urls "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --youtube-comments --output file --format markdown
 
 # Scrape YouTube playlist with comments and split each video into a separate file
-python -m webseed.cli --urls "https://www.youtube.com/playlist?list=PLaEJLf99gDO7mptVmIwFDM78AU-NzxLyM" --youtube-comments --split-videos --max-comments 20
+contxt --urls "https://www.youtube.com/playlist?list=PLaEJLf99gDO7mptVmIwFDM78AU-NzxLyM" --youtube-comments --split-videos --max-comments 20
 ```
 
 ### Python API
 
 ```python
-from webseed.cli import run_scraper
+from contxt.cli import run_scraper
 
 # Example usage for web pages
 run_scraper(
@@ -83,15 +93,15 @@ run_scraper(
 
 ### Mixed Content
 
-WebSeed automatically detects and appropriately processes different types of URLs. You can mix YouTube and web URLs in the same command:
+contxt automatically detects and appropriately processes different types of URLs. You can mix YouTube and web URLs in the same command:
 
 ```bash
-python -m webseed.cli --urls "https://example.com https://www.youtube.com/watch?v=dQw4w9WgXcQ" --youtube-comments
+contxt --urls "https://example.com https://www.youtube.com/watch?v=dQw4w9WgXcQ" --youtube-comments
 ```
 
 ## Scraping Modes
 
-WebSeed supports three scraping modes:
+contxt supports three scraping modes:
 
 - **Basic**: Uses the `requests` library for simple HTML content
 - **Advanced**: Uses a headless browser for JavaScript-heavy sites
@@ -110,7 +120,7 @@ WebSeed supports three scraping modes:
 
 ## YouTube Options
 
-WebSeed provides several options for YouTube content:
+contxt provides several options for YouTube content:
 
 - **--youtube-comments**: Include comments in the output (default: false)
 - **--max-comments**: Maximum number of comments to fetch per video (default: 30)
@@ -122,12 +132,12 @@ WebSeed provides several options for YouTube content:
 
 ## Configuration
 
-WebSeed can be configured via a YAML file. By default, it looks for:
+contxt can be configured via a YAML file. By default, it looks for:
 
-1. `webseed.yaml` in the current directory
+1. `contxt.yaml` in the current directory
 2. `config/default.yaml` in the project directory
-3. `~/.webseed.yaml` in the user's home directory
-4. Path specified by the `WEBSEED_CONFIG` environment variable
+3. `~/.contxt.yaml` in the user's home directory
+4. Path specified by the `CONTXT_CONFIG` environment variable
 
 Example configuration:
 

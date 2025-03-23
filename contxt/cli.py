@@ -4,12 +4,12 @@ import os
 import sys
 from typing import List, Optional, Dict, Any
 
-from webseed.core.config import load_config
-from webseed.sources.web.extractor import extract_content
-from webseed.outputs.base import OutputFormat
-from webseed.outputs.markdown import MarkdownOutput
-from webseed.outputs.tagged import TaggedOutput
-from webseed.processors.image import ImageProcessor
+from contxt.core.config import load_config
+from contxt.sources.web.extractor import extract_content
+from contxt.outputs.base import OutputFormat
+from contxt.outputs.markdown import MarkdownOutput
+from contxt.outputs.tagged import TaggedOutput
+from contxt.processors.image import ImageProcessor
 
 
 def parse_urls(urls_input: str) -> List[str]:
@@ -21,7 +21,7 @@ def parse_urls(urls_input: str) -> List[str]:
 
 def interactive_mode():
     """Run the CLI in interactive mode, asking the user for input."""
-    print("Welcome to WebSeed CLI!")
+    print("Welcome to contxt CLI!")
     
     # Get URLs
     urls_input = input("Enter URLs (space or comma-separated): ")
@@ -109,23 +109,23 @@ def run_scraper(
         }
     
     # Separate YouTube URLs from regular web URLs
-    from webseed.sources.youtube.source import is_youtube_url
+    from contxt.sources.youtube.source import is_youtube_url
     youtube_urls = [url for url in filtered_urls if is_youtube_url(url)]
     web_urls = [url for url in filtered_urls if not is_youtube_url(url)]
     
-# Process YouTube URLs
+    # Process YouTube URLs
     youtube_results = []
     if youtube_urls:
-        from webseed.sources.youtube.source import process_youtube_url, format_youtube_content_as_markdown, format_youtube_content_as_tagged
+        from contxt.sources.youtube.source import process_youtube_url, format_youtube_content_as_markdown, format_youtube_content_as_tagged
         
         # Configure cache if needed
         if 'cache_dir' in youtube_options and youtube_options['cache_dir']:
-            from webseed.sources.youtube.cache import TranscriptCache
+            from contxt.sources.youtube.cache import TranscriptCache
             cache = TranscriptCache(youtube_options['cache_dir'])
             
         # Clean cache if requested
         if youtube_options.get('clean_cache', False):
-            from webseed.sources.youtube.cache import get_cache
+            from contxt.sources.youtube.cache import get_cache
             cache = get_cache()
             removed_count = cache.clean_old_cache()
             print(f"Cleaned YouTube cache: {removed_count} files removed")
@@ -167,7 +167,7 @@ def run_scraper(
     
     # Handle output for YouTube content
     if youtube_results:
-        from webseed.sources.youtube.source import format_youtube_content_as_markdown, format_youtube_content_as_tagged
+        from contxt.sources.youtube.source import format_youtube_content_as_markdown, format_youtube_content_as_tagged
         
         if output_method == 'print':
             for result in youtube_results:
@@ -176,7 +176,7 @@ def run_scraper(
                 else:
                     print(format_youtube_content_as_tagged(result))
         else:  # Save to file
-            from webseed.outputs.youtube import YouTubeOutput
+            from contxt.outputs.youtube import YouTubeOutput
             
             save_path = output_path or os.getcwd()
             output_handler = YouTubeOutput(
@@ -205,7 +205,7 @@ def run_scraper(
 
 
 def main():
-    parser = argparse.ArgumentParser(description='WebSeed - Web content scraper')
+    parser = argparse.ArgumentParser(description='contxt - Context builder from web content')
     
     # Basic options
     parser.add_argument('--urls', help='Space-separated list of URLs to scrape')
@@ -221,7 +221,7 @@ def main():
     parser.add_argument('--interactive', action='store_true', 
                        help='Run in interactive mode, prompting for options')
     
-# YouTube specific options
+    # YouTube specific options
     youtube_group = parser.add_argument_group('YouTube options')
     youtube_group.add_argument('--youtube-comments', action='store_true',
                               help='Include YouTube comments')
