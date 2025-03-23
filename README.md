@@ -1,35 +1,52 @@
-# contxt
+# contxt: Web Content Collector for LLM Context
 
-A tool for quickly creating context documents for LLMs from various web sources.
+A tool for quickly creating context documents for Large Language Models from web sources.
 
 ## Features
 
-- Scrape content from websites with different levels of JavaScript handling
-- Support for multiple sources:
-  - Web pages with smart HTML-to-Markdown conversion
-  - YouTube videos, playlists, and channels with transcript extraction
-  - GitHub repositories and issues (coming soon)
-  - Instagram profiles (coming soon)
-- Multiple output formats (Markdown, tagged text, image download)
-- YouTube-specific features:
-  - Automatic transcript extraction
-  - Optional comment collection
-  - Support for individual videos, playlists, and channels
-  - Split videos into separate files or combine into one document
-- Configurable rate limiting to respect website policies
-- Interactive CLI interface
+- **Intelligent Content Extraction**:
+  - Automatic boilerplate and navigation removal
+  - OpenGraph metadata extraction
+  - Main content identification
+  - List item deduplication
+  - Span concatenation
+  - SVG content cleaning
+
+- **Multiple Scraping Modes**:
+  - Basic: Fast HTML scraping
+  - Advanced: JavaScript support via Selenium
+  - Super: Extended wait time for complex sites
+  
+- **Smart Image Handling**:
+  - Hash-based deduplication
+  - Relative URL resolution
+  - Date-based organization
+  - Dimension extraction
+  
+- **Content Metrics**:
+  - Token counting for LLM context estimation
+  - Processing time tracking
+  
+- **Flexible Output Options**:
+  - **Formats**:
+    - Markdown: Clean, readable format
+    - XML: Structured, machine-readable format
+    - Raw HTML: Cleaned HTML without boilerplate
+  - **Destinations**:
+    - Print to console
+    - Save to file
+    - Copy to clipboard
+    
+- **URL Management**:
+  - Pattern-based URL filtering
+  - Batch processing
+  
+- **User Experience**:
+  - Interactive CLI with color-coded output
+  - Detailed progress tracking
+  - Timing information
 
 ## Installation
-
-### Using Homebrew (recommended)
-
-```bash
-# Install using Homebrew
-brew tap yourusername/contxt
-brew install contxt
-```
-
-### Manual Installation
 
 ```bash
 # Clone the repository
@@ -40,131 +57,83 @@ cd contxt
 pip install -e .
 ```
 
-## Quick Start
+## Usage
 
-### Command Line Interface
-
-contxt provides a simple CLI that can be used to scrape content:
+### Basic Usage
 
 ```bash
-# Run in interactive mode (recommended for first-time users)
-contxt --interactive
+# Interactive mode with guided prompts
+contxt
 
-# Scrape web pages
-contxt --urls "https://example.com https://python.org" --mode basic --output file --format markdown
+# Direct mode with URL(s)
+contxt https://example.com https://another-example.com
 
-# Scrape YouTube content
-contxt --urls "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --youtube-comments --output file --format markdown
+# With options
+contxt https://example.com -m advanced -f markdown -o file -i
 
-# Scrape YouTube playlist with comments and split each video into a separate file
-contxt --urls "https://www.youtube.com/playlist?list=PLaEJLf99gDO7mptVmIwFDM78AU-NzxLyM" --youtube-comments --split-videos --max-comments 20
+# Ignore specific URL patterns
+contxt https://example.com --ignore-pattern /tags/ --ignore-pattern /categories/
+
+# Custom naming for output files
+contxt https://example.com -o file --custom-name my_project
+
+# Advanced scraping with image downloading
+contxt https://example.com -m super -i -o file
 ```
 
-### Python API
+### Command-line Options
 
-```python
-from contxt.cli import run_scraper
+- **Scraping Options**:
+  - `--mode, -m`: Scraping mode (`basic`, `advanced`, or `super`)
+  - `--include-images, -i`: Include image references and download images when saving to file
+  - `--ignore-pattern`: URL patterns to ignore (can be specified multiple times)
+  - `--no-og-metadata`: Don't extract OpenGraph metadata
 
-# Example usage for web pages
-run_scraper(
-    urls=['https://example.com', 'https://python.org'],
-    mode='basic',          # 'basic', 'advanced', or 'super'
-    output_method='file',  # 'print' or 'file'
-    format_type='markdown', # 'markdown', 'tagged', or 'img'
-    custom_name='my_scrape', # Custom name prefix for output
-    output_path='/path/to/output' # Where to save output
-)
+- **Output Options**:
+  - `--format, -f`: Output format (`markdown`, `xml`, or `raw`)
+  - `--output, -o`: Output destination (`print`, `file`, or `clipboard`)
+  - `--directory, -d`: Output directory when saving to file
+  - `--single-file, -s`: Combine all URLs into a single file
+  - `--custom-name`: Custom prefix for output files
 
-# Example usage for YouTube content
-run_scraper(
-    urls=['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 
-          'https://www.youtube.com/playlist?list=PLaEJLf99gDO7mptVmIwFDM78AU-NzxLyM'],
-    output_method='file',
-    format_type='markdown',
-    custom_name='youtube_content',
-    youtube_options={
-        'include_comments': True,
-        'max_comments': 20,
-        'split_videos': True,
-        'max_videos': 10
-    }
-)
-```
+- **Performance Options**:
+  - `--no-processing-time`: Don't show processing time in output
+  - `--no-token-count`: Don't show token count in output
 
-### Mixed Content
+- **General Options**:
+  - `--config, -c`: Configure default settings
+  - `--verbose, -v`: Enable verbose logging
+  - `--version`: Show version information
 
-contxt automatically detects and appropriately processes different types of URLs. You can mix YouTube and web URLs in the same command:
+### Configuration
 
-```bash
-contxt --urls "https://example.com https://www.youtube.com/watch?v=dQw4w9WgXcQ" --youtube-comments
-```
+Default settings are stored in `~/.contxt/config.yaml`. You can modify them using the `--config` flag or by editing the file directly.
 
-## Scraping Modes
+## Supported Input Sources
 
-contxt supports three scraping modes:
+- Individual website URLs
+- Multiple URLs processed in batch
 
-- **Basic**: Uses the `requests` library for simple HTML content
-- **Advanced**: Uses a headless browser for JavaScript-heavy sites
-- **Super**: Uses a full browser with longer waits for complex sites
+## Output Options
 
-## Output Formats
+- **Formats**:
+  - Markdown: Clean, readable format with preserved formatting
+  - XML: Structured format with metadata and content elements
+  - Raw HTML: Cleaned HTML with unnecessary elements removed
 
-- **Markdown**: Clean, readable Markdown format with support for:
-  - Table preservation
-  - Code block formatting
-  - Image references
-  - Link preservation
-  - Smart content cleaning
-- **Tagged**: Simple text format with element types as tags
-- **Images**: Downloads and saves all images from the pages
+- **Destinations**:
+  - Print to console
+  - Save to file
+  - Copy to clipboard
 
-## YouTube Options
+- **Organization**:
+  - Single file or multiple files
+  - Optional image downloading to /images folder
 
-contxt provides several options for YouTube content:
+## Token Counting
 
-- **--youtube-comments**: Include comments in the output (default: false)
-- **--max-comments**: Maximum number of comments to fetch per video (default: 30)
-- **--split-videos**: Save each video to a separate file (default: false)
-- **--max-videos**: Maximum number of videos to process from channels/playlists (default: 10)
-- **--no-cache**: Disable caching for YouTube content (default: caching enabled)
-- **--clean-cache**: Clean the YouTube cache before processing
-- **--cache-dir**: Custom directory for YouTube cache
-
-## Configuration
-
-contxt can be configured via a YAML file. By default, it looks for:
-
-1. `contxt.yaml` in the current directory
-2. `config/default.yaml` in the project directory
-3. `~/.contxt.yaml` in the user's home directory
-4. Path specified by the `CONTXT_CONFIG` environment variable
-
-Example configuration:
-
-```yaml
-scraping:
-  default_mode: basic
-  timeout: 30
-
-output:
-  default_format: markdown
-  default_path: null  # Uses current working directory
-
-rate_limiting:
-  requests_per_minute: 10
-  domain_specific:
-    github.com: 5
-    youtube.com: 3
-```
-
-## Examples
-
-See the `examples` directory for usage examples:
-
-- `basic_web_scraping.py`: Simple web scraping example
-- `github_repo.py`: Scraping GitHub repositories
-- `youtube_playlist.py`: Extracting YouTube playlist content
+contxt provides token count estimates for the extracted content, helping you understand how much of an LLM's context window your content will use.
 
 ## License
 
-MIT
+MIT License
