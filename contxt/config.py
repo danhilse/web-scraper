@@ -33,8 +33,9 @@ DEFAULT_CONFIG = {
     "youtube": {
         "include_comments": False,
         "max_videos": 30,
-        "include_description": True
-    }
+        "include_description": True,
+        "format_style": "complete"  # Add this new default
+    },
 }
 
 

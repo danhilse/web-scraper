@@ -1,41 +1,29 @@
-"""
-Formatters package for contxt.
-"""
-import logging
-from typing import Dict, Type, Optional
-from .base_formatter import BaseFormatter
 from .markdown_formatter import MarkdownFormatter
 from .xml_formatter import XMLFormatter
 from .html_formatter import HTMLFormatter
+from .youtube_formatter import YouTubeFormatter
 
-__all__ = ["get_formatter", "BaseFormatter", "MarkdownFormatter", "XMLFormatter", "HTMLFormatter"]
-
-logger = logging.getLogger(__name__)
-
-# Formatter registry
-FORMATTERS: Dict[str, Type[BaseFormatter]] = {
-    "markdown": MarkdownFormatter,
-    "xml": XMLFormatter,
-    "raw": HTMLFormatter,  # "raw" format is handled by the HTML formatter with minimal processing
-    "html": HTMLFormatter,  # Alternative name for the same formatter
-}
-
-def get_formatter(format_type, include_images=False, image_map=None):
-    """Get the appropriate formatter based on the format type."""
+def get_formatter(format_type="markdown", include_images=False, image_map=None, youtube_format_style="complete"):
+    """
+    Factory function to get the appropriate formatter for the output format.
+    
+    Args:
+        format_type (str): The format type ('markdown', 'xml', 'raw', or 'youtube')
+        include_images (bool): Whether to include images
+        image_map (dict): Mapping of image URLs to local file paths
+        youtube_format_style (str): Style for YouTube formatter ('complete', 'raw', 'chapters')
+        
+    Returns:
+        BaseFormatter: The formatter instance
+    """
     if format_type == "markdown":
-        from .markdown_formatter import MarkdownFormatter
-        return MarkdownFormatter(include_images, image_map)
+        return MarkdownFormatter(include_images=include_images, image_map=image_map)
     elif format_type == "xml":
-        from .xml_formatter import XMLFormatter
-        return XMLFormatter(include_images, image_map)
+        return XMLFormatter(include_images=include_images, image_map=image_map)
     elif format_type == "raw":
-        from .html_formatter import HTMLFormatter
-        return HTMLFormatter(include_images, image_map, clean_html=True, 
-                           add_boilerplate=False, add_css=False)
+        return HTMLFormatter(include_images=include_images, image_map=image_map)
     elif format_type == "youtube":
-        from .youtube_formatter import YouTubeFormatter
-        return YouTubeFormatter(include_images, image_map)
+        return YouTubeFormatter(format_style=youtube_format_style, include_images=include_images, image_map=image_map)
     else:
-        # Default to markdown for unknown types
-        from .markdown_formatter import MarkdownFormatter
-        return MarkdownFormatter(include_images, image_map)
+        # Default to markdown
+        return MarkdownFormatter(include_images=include_images, image_map=image_map)

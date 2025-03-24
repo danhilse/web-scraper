@@ -30,14 +30,87 @@ def identify_youtube_url_type(url: str) -> Tuple[str, str]:
         except ValueError:
             return ('unknown', '')
 
-def get_transcript(video_id: str) -> str:
-    """Get transcript for a YouTube video."""
+def get_transcript(video_id: str, include_timestamps: bool = True) -> str:
+    """
+    Get transcript for a YouTube video.
+    
+    Args:
+        video_id (str): YouTube video ID
+        include_timestamps (bool): Whether to include timestamps in the transcript
+        
+    Returns:
+        str: Transcript text with or without timestamps
+    """
     try:
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        return "\n".join([f"[{entry['start']:.1f}s] {entry['text']}" for entry in transcript])
+        if include_timestamps:
+            return "\n".join([f"[{entry['start']:.1f}s] {entry['text']}" for entry in transcript])
+        else:
+            return "\n".join([entry['text'] for entry in transcript])
     except Exception as e:
         print(f"Error fetching transcript for video {video_id}: {e}")
         return ""
+
+def get_chapter_info(video_id: str) -> List[Dict]:
+    """Get chapter information for a YouTube video if available."""
+    ydl_opts = {
+        'quiet': True,
+        'extract_flat': False,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            
+            if 'chapters' in info and info['chapters']:
+                return info['chapters']
+            return []
+    except Exception as e:
+        print(f"Error fetching chapter info for video {video_id}: {e}")
+        return []
+
+def organize_transcript_by_chapters(transcript: str, chapters: List[Dict]) -> str:
+    """Organize transcript by chapters if available."""
+    if not chapters or not transcript:
+        return transcript
+    
+    # Split transcript into lines and parse timestamps
+    lines = transcript.split('\n')
+    parsed_lines = []
+    
+    for line in lines:
+        # Extract timestamp
+        time_match = re.match(r'\[([\d\.]+)s\] (.*)', line)
+        if time_match:
+            time_seconds = float(time_match.group(1))
+            text = time_match.group(2)
+            parsed_lines.append((time_seconds, text))
+        else:
+            # If no timestamp found, add with -1 as marker
+            parsed_lines.append((-1, line))
+    
+    # Organize by chapters
+    result = []
+    current_chapter = 0
+    
+    # Add first chapter title
+    if chapters:
+        result.append(f"## {chapters[0]['title']}")
+    
+    for time_seconds, text in parsed_lines:
+        # Move to next chapter if needed
+        while current_chapter < len(chapters) - 1 and time_seconds >= chapters[current_chapter + 1]['start_time']:
+            current_chapter += 1
+            result.append(f"\n## {chapters[current_chapter]['title']}")
+        
+        # Add text without timestamp for chapter format
+        if time_seconds >= 0:
+            result.append(text)
+        else:
+            # Include non-timestamped lines as-is
+            result.append(text)
+    
+    return "\n".join(result)
 
 def get_video_info(video_id: str, include_comments: bool = False) -> Dict:
     """Get video metadata using yt-dlp."""

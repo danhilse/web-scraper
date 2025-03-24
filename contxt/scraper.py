@@ -32,7 +32,7 @@ except ImportError:
     SELENIUM_AVAILABLE = False
 
 class Scraper:
-    def __init__(self, mode="basic", include_comments=False, max_videos=30):
+    def __init__(self, mode="basic", include_comments=False, max_videos=30, youtube_format_style="complete"):
         """
         Initialize the scraper with the specified mode and YouTube options.
         
@@ -40,10 +40,12 @@ class Scraper:
             mode (str): Scraping mode - "basic", "advanced", or "super"
             include_comments (bool): Whether to include YouTube comments
             max_videos (int): Maximum number of videos to process from playlists/channels
+            youtube_format_style (str): Format style for YouTube content - "raw", "complete", or "chapters"
         """
         self.mode = mode
         self.include_comments = include_comments
         self.max_videos = max_videos
+        self.youtube_format_style = youtube_format_style
         
         if mode in ["advanced", "super"] and not SELENIUM_AVAILABLE:
             logger.warning("Selenium not available. Falling back to basic mode.")
@@ -89,128 +91,7 @@ class Scraper:
         
         return result
     
-    def _scrape(self, url, include_images, use_selenium=False, wait_time=0, headless=True):
-        """
-        Generic scraping function that can be used by all scraping modes.
-        
-        Args:
-            url (str): URL to scrape
-            include_images (bool): Whether to include images
-            use_selenium (bool): Whether to use Selenium for JavaScript support
-            wait_time (int): Time to wait for dynamic content in seconds
-            headless (bool): Whether to run browser in headless mode (Selenium only)
-            
-        Returns:
-            dict: Dictionary containing metadata and content
-        """
-        start_time = time.time()
-        driver = None
-        
-        try:
-            if use_selenium:
-                # Use Selenium for JavaScript heavy sites
-                driver = self._create_driver(headless=headless)
-                driver.get(url)
-                
-                # Wait for dynamic content if specified
-                if wait_time > 0:
-                    time.sleep(wait_time)
-                    
-                    # For super mode, also use explicit waits
-                    if wait_time > 10:
-                        WebDriverWait(driver, 20).until(
-                            EC.presence_of_element_located((By.TAG_NAME, "body"))
-                        )
-                
-                page_source = driver.page_source
-                soup = BeautifulSoup(page_source, "html.parser")
-            else:
-                # Use requests for basic sites
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-                }
-                response = requests.get(url, headers=headers, timeout=30)
-                response.raise_for_status()
-                soup = BeautifulSoup(response.text, "html.parser")
-            
-            # Extract metadata
-            title = soup.title.text.strip() if soup.title else ""
-            
-            # Clean HTML to remove unnecessary elements
-            cleaned_soup, og_metadata = self._clean_html(soup)
-            
-            # Extract main content - prioritize main tag first
-            main_content = (
-                cleaned_soup.find("main") or 
-                cleaned_soup.find("article") or 
-                cleaned_soup.find("div", {"id": "content"}) or 
-                cleaned_soup.find("div", {"class": "content"}) or
-                cleaned_soup.find("div", {"role": "main"})
-            )
-            
-            if not main_content:
-                # Fallback to body if no specific content area found
-                main_content = cleaned_soup.body
-            
-            # Process images if requested
-            images = []
-            if include_images and main_content:
-                images = self._extract_images(main_content, url)
-                
-                # Also add OpenGraph image if available
-                if og_metadata.get("og_image"):
-                    og_image_url = urljoin(url, og_metadata["og_image"])
-                    images.append({"url": og_image_url, "alt": "OpenGraph image"})
-            
-            # Extract text and HTML content to avoid BeautifulSoup recursion issues
-            content_text = main_content.get_text(separator='\n') if main_content else ""
-            content_html = str(main_content) if main_content else ""
-            
-            # Instead of passing BeautifulSoup objects to the formatter, 
-            # we'll provide simplified HTML strings to prevent recursion issues
-            simplified_html = content_html
-            
-            # Declare this variable with a default value to avoid reference errors
-            simplified_soup = None
-            
-            # Count tokens
-            token_count = self._count_tokens(content_text)
-            
-            end_time = time.time()
-            processing_time = end_time - start_time
-            
-            return {
-                "url": url,
-                "title": title,
-                "content_text": content_text,
-                "content_html": content_html,
-                # Always use a string for content to avoid recursion issues with BeautifulSoup
-                "content": simplified_html,
-                "images": images,
-                "raw_html": content_html,
-                "token_count": token_count,
-                "og_metadata": og_metadata,
-                "processing_time": processing_time
-            }
-            
-        except Exception as e:
-            logger.error(f"Error scraping {url}: {e}")
-            return {
-                "url": url,
-                "title": f"Error: {str(e)}",
-                "content_text": "",
-                "content_html": "",
-                "content": "",  # For backward compatibility
-                "images": [],
-                "raw_html": "",
-                "token_count": 0,
-                "og_metadata": {},
-                "processing_time": 0
-            }
-        finally:
-            # Always close the driver to clean up resources
-            if driver:
-                driver.quit()
+
     
     def _scrape_basic(self, url, include_images):
         """Basic scraping using requests and BeautifulSoup."""
@@ -621,16 +502,36 @@ class Scraper:
         return image_map
     
     def _scrape_youtube(self, url, include_images=False):
-        """Handle YouTube-specific scraping."""
+        """Handle YouTube-specific scraping with format style options."""
         from .youtube_handler import identify_youtube_url_type, get_transcript, get_video_info
         from .youtube_handler import get_playlist_videos, get_channel_videos
+        from .youtube_handler import get_chapter_info, organize_transcript_by_chapters
         
         url_type, url_id = identify_youtube_url_type(url)
         
         if url_type == 'video':
             # Single video processing
             video_info = get_video_info(url_id, include_comments=self.include_comments)
-            transcript = get_transcript(url_id)
+            
+            # Get transcript with timestamps (for complete and chapters format)
+            transcript = get_transcript(url_id, include_timestamps=True)
+            
+            # Get transcript without timestamps (for raw format)
+            transcript_no_times = get_transcript(url_id, include_timestamps=False)
+            
+            # Get chapters if format style is 'chapters'
+            chapters = []
+            transcript_by_chapters = None
+            
+            if self.youtube_format_style == "chapters":
+                chapters = get_chapter_info(url_id)
+                
+                # Organize transcript by chapters if chapters are available
+                if chapters:
+                    transcript_by_chapters = organize_transcript_by_chapters(transcript, chapters)
+            
+            # Calculate token count (approximate)
+            token_count = len((video_info.get('description', '') + transcript or '').split())
             
             return {
                 'url': url,
@@ -639,12 +540,15 @@ class Scraper:
                 'content_html': f"<h1>{video_info['title']}</h1><p>Channel: {video_info['channel']}</p><div>{video_info['description']}</div><h2>Transcript</h2><div>{transcript}</div>",
                 'content': f"<h1>{video_info['title']}</h1><p>Channel: {video_info['channel']}</p><div>{video_info['description']}</div><h2>Transcript</h2><div>{transcript}</div>",
                 'images': [],
-                'token_count': len(transcript.split()),
+                'token_count': token_count,
                 'processing_time': 0,
                 'youtube_data': {
                     'type': 'video',
                     'video_info': video_info,
-                    'transcript': transcript
+                    'transcript': transcript,
+                    'transcript_no_times': transcript_no_times,
+                    'chapters': chapters,
+                    'transcript_by_chapters': transcript_by_chapters
                 }
             }
         
@@ -673,7 +577,8 @@ class Scraper:
             for i, vid_id in enumerate(video_ids):
                 try:
                     video_info = get_video_info(vid_id, include_comments=self.include_comments)
-                    transcript = get_transcript(vid_id)
+                    transcript = get_transcript(vid_id, include_timestamps=True)
+                    transcript_no_times = get_transcript(vid_id, include_timestamps=False)
                     
                     video_data = {
                         'title': video_info['title'],
@@ -681,6 +586,7 @@ class Scraper:
                         'url': f"https://www.youtube.com/watch?v={vid_id}",
                         'description': video_info.get('description', ''),
                         'transcript': transcript,
+                        'transcript_no_times': transcript_no_times,
                         'comments': video_info.get('comments', [])
                     }
                     
@@ -763,7 +669,8 @@ class Scraper:
             for i, vid_id in enumerate(video_ids):
                 try:
                     video_info = get_video_info(vid_id, include_comments=self.include_comments)
-                    transcript = get_transcript(vid_id)
+                    transcript = get_transcript(vid_id, include_timestamps=True)
+                    transcript_no_times = get_transcript(vid_id, include_timestamps=False)
                     
                     video_data = {
                         'title': video_info['title'],
@@ -771,6 +678,7 @@ class Scraper:
                         'url': f"https://www.youtube.com/watch?v={vid_id}",
                         'description': video_info.get('description', ''),
                         'transcript': transcript,
+                        'transcript_no_times': transcript_no_times,
                         'comments': video_info.get('comments', [])
                     }
                     

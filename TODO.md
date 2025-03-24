@@ -2,8 +2,11 @@
 - amalgamate or split
 - txt output or formatted output
 - change defaults? (Yes, No, Stop Asking)
+- handle direct passing URL, options
 
 - Sitemap (with depth and limits)
+-
+- in console, alias link
 
 - youtube support
   - - timecode? sections?

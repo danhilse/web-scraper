@@ -404,9 +404,27 @@ def interactive_prompt(config, is_config_mode=False):
 
 def youtube_options_prompt(config):
     """Prompt for YouTube-specific options."""
-    youtube_config = config["youtube"]
+    youtube_config = config.get("youtube", {})
     
-    # Only show this if a YouTube URL is detected
+    # YouTube format style
+    console.print("\n[cyan bold]YouTube Format Options[/cyan bold]")
+    format_descriptions = {
+        "complete": "Complete (Full metadata, timestamps, comments, markdown format)",
+        "raw": "Raw (Basic metadata, transcript only, no timestamps, txt format)",
+        "chapters": "Chapters (Transcript organized by chapters if available, markdown format)"
+    }
+    format_choices = [
+        questionary.Choice(title=format_descriptions[fmt], value=fmt) 
+        for fmt in ["complete", "raw", "chapters"]
+    ]
+    
+    format_style = questionary.select(
+        "Select YouTube format style:",
+        choices=format_choices,
+        default=youtube_config.get("format_style", "complete"),
+        style=custom_style
+    ).ask()
+    
     include_comments = questionary.confirm(
         "Include YouTube comments?",
         default=youtube_config.get("include_comments", False),
@@ -427,7 +445,8 @@ def youtube_options_prompt(config):
     
     return {
         "include_comments": include_comments,
-        "max_videos": max_videos
+        "max_videos": max_videos,
+        "format_style": format_style
     }
 
 

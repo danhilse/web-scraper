@@ -56,7 +56,8 @@ def process_url(url, config):
         scraper = Scraper(
             mode=config["scraping"]["mode"],
             include_comments=config["youtube"].get("include_comments", False),
-            max_videos=config["youtube"].get("max_videos", 30)
+            max_videos=config["youtube"].get("max_videos", 30),
+            youtube_format_style=config["youtube"].get("format_style", "complete")
         )
         
         # Scrape the URL
@@ -81,11 +82,19 @@ def process_url(url, config):
         scraper.close()
         
         # Get the appropriate formatter for the output format
-        formatter = get_formatter(
-            format_type=config["output"]["format"],
-            include_images=config["scraping"]["include_images"],
-            image_map=image_map
-        )
+        if is_youtube_url(url):
+            formatter = get_formatter(
+                format_type=config["output"]["format"],
+                include_images=config["scraping"]["include_images"],
+                image_map=image_map,
+                youtube_format_style=config["youtube"].get("format_style", "complete")
+            )
+        else:
+            formatter = get_formatter(
+                format_type=config["output"]["format"],
+                include_images=config["scraping"]["include_images"],
+                image_map=image_map
+            )
         
         formatted_content = formatter.format(scraped_data)
         
@@ -124,13 +133,14 @@ def process_url(url, config):
 @click.option("-d", "--directory", type=click.Path(exists=True, file_okay=False), help="Output directory (when saving to file)")
 @click.option("-s", "--single-file", is_flag=True, help="Combine all URLs into a single file")
 @click.option("--custom-name", help="Custom prefix for output files")
+@click.option("--youtube-format", type=click.Choice(["complete", "raw", "chapters"]), help="YouTube output format (for YouTube URLs only)")
 
 # General options
 @click.option("-c", "--config", is_flag=True, help="Configure default settings")
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
 @click.option("--version", is_flag=True, help="Show version information")
 def main(urls, mode, format, include_images, include_comments, max_videos,
-         output, directory, single_file, custom_name, 
+         output, directory, single_file, custom_name, youtube_format,
          config, verbose, version):
     """
     Web Content Collector for LLM Context.
@@ -184,6 +194,8 @@ def main(urls, mode, format, include_images, include_comments, max_videos,
             user_config["youtube"]["include_comments"] = include_comments
         if max_videos is not None:
             user_config["youtube"]["max_videos"] = max_videos
+        if youtube_format is not None:
+            user_config["youtube"]["format_style"] = youtube_format
             
         # Output options
         if format:
