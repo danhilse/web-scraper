@@ -62,11 +62,13 @@ class YouTubeFormatter(BaseFormatter):
                 if "[" in transcript and "]" in transcript:
                     transcript_lines = []
                     for line in transcript.split("\n"):
-                        if line.startswith("[") and "]" in line:
-                            # Strip timestamp
-                            transcript_lines.append(line.split("] ", 1)[1] if "] " in line else line)
-                        else:
-                            transcript_lines.append(line)
+                        if "[" in line and "]" in line:
+                            # Find the closing bracket and take everything after it
+                            closing_bracket_index = line.find("]")
+                            if closing_bracket_index != -1 and closing_bracket_index + 1 < len(line):
+                                transcript_lines.append(line[closing_bracket_index + 1:].lstrip())
+                            else:
+                                transcript_lines.append(line)
                     transcript = "\n".join(transcript_lines)
             
             # Build raw output

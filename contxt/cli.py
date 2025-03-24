@@ -211,7 +211,7 @@ def main(urls, mode, format, include_images, include_comments, max_videos,
         
         # Determine whether to run in interactive or direct mode
         if not urls:
-            # Interactive mode
+            # Interactive mode - no URLs provided
             urls, directory, interactive_config = interactive_prompt(user_config)
             
             # Check if any URLs are YouTube URLs and prompt for YouTube options
@@ -222,6 +222,14 @@ def main(urls, mode, format, include_images, include_comments, max_videos,
             
             # Use interactive config
             user_config = interactive_config
+        else:
+            # URLs provided as command line arguments
+            # Only prompt for YouTube options if needed
+            has_youtube_urls = any(is_youtube_url(url) for url in urls)
+            if has_youtube_urls:
+                console.print("\n[cyan bold]YouTube Options[/cyan bold]")
+                youtube_options = youtube_options_prompt(user_config)
+                user_config["youtube"] = youtube_options
         
         if not urls:
             urls = ["https://www.ableton.com/en/live/all-new-features/"]
